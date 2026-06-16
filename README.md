@@ -22,30 +22,19 @@ Cardinal ETLs is a comprehensive data processing system that automates the extra
 - **`test_email_notification.py`** - Email system verification
 
 ### Setup & Configuration
-- **`setup.ps1`** - Automated deployment and system validation
 - **`config.yaml`** - System configuration settings
 - **`requirements.txt`** - Python dependencies
 
 ## 🚀 Quick Start
 
-### 1. Initial Setup
-```powershell
-# Clone the repository
-git clone https://github.com/atongmonte/Cardinal-ETLs.git
-cd Cardinal-ETLs
-
-# Run automated setup
-.\setup.ps1
+### Run ETL Process
+```bat
+run.bat
 ```
 
-### 2. Run ETL Process
-```powershell
-# Using impersonation wrapper (recommended for production)
-python run_with_impersonation.py Cardinal_Inv_Upload.py
-
-# Direct execution (for development/testing)
-python Cardinal_Inv_Upload.py
-```
+`run.bat` creates the local virtual environment if needed, installs packages
+from `requirements.txt`, verifies `.env` and `config.yaml` exist, and writes
+runtime output to `logs\python_run.log`.
 
 ## 🔧 System Requirements
 
