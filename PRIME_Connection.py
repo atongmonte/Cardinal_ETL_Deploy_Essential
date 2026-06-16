@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-PRIME_Connection_Simple.py
---------------------------
-Simplified PRIME database connection test without built-in impersonation.
+PRIME_Connection.py
+-------------------
+PRIME database connection test without built-in impersonation.
 To be used with run_with_impersonation.py wrapper.
 
 Usage:
-    python run_with_impersonation.py PRIME_Connection_Simple.py
+    python run_with_impersonation.py PRIME_Connection.py
 """
 
 import pyodbc

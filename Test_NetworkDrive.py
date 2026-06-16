@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Test_NetworkDrive_Simple.py
----------------------------
-Simplified network drive test without built-in impersonation.
+Test_NetworkDrive.py
+--------------------
+Network drive test without built-in impersonation.
 To be used with run_with_impersonation.py wrapper.
 
 Usage:
-    python run_with_impersonation.py Test_NetworkDrive_Simple.py
+    python run_with_impersonation.py Test_NetworkDrive.py
 """
 
 import os

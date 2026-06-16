@@ -17,8 +17,8 @@ Cardinal ETLs is a comprehensive data processing system that automates the extra
 - **`msgraph_email.py`** - Microsoft Graph API email notifications
 
 ### Test Scripts
-- **`Test_NetworkDrive_Simple.py`** - Network connectivity testing
-- **`PRIME_Connection_Simple.py`** - Database connection validation  
+- **`Test_NetworkDrive.py`** - Network connectivity testing
+- **`PRIME_Connection.py`** - Database connection validation  
 - **`test_email_notification.py`** - Email system verification
 
 ### Setup & Configuration
@@ -63,10 +63,10 @@ System settings are managed through `config.yaml` for easy environment-specific 
 ### Running Tests
 ```powershell
 # Network connectivity test
-python run_with_impersonation.py Test_NetworkDrive_Simple.py
+python run_with_impersonation.py Test_NetworkDrive.py
 
 # Database connection test  
-python run_with_impersonation.py PRIME_Connection_Simple.py
+python run_with_impersonation.py PRIME_Connection.py
 
 # Email system test
 python run_with_impersonation.py test_email_notification.py
@@ -76,8 +76,8 @@ python run_with_impersonation.py test_email_notification.py
 Scripts can be run directly as the current user for development/testing when you have the necessary permissions:
 
 ```powershell
-python Test_NetworkDrive_Simple.py
-python PRIME_Connection_Simple.py  
+python Test_NetworkDrive.py
+python PRIME_Connection.py  
 python Cardinal_Inv_Upload.py
 ```
 
