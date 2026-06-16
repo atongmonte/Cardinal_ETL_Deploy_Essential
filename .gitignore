@@ -1,0 +1,12 @@
+# Local secrets/config
+.env
+config.yaml
+
+# Logs
+*.log
+logs/
+log_python/
+
+# Python generated files
+__pycache__/
+*.py[cod]
