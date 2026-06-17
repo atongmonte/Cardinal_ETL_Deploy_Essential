@@ -4,7 +4,7 @@ setlocal EnableDelayedExpansion
 for %%I in ("%~dp0.") do set "PROJECT_DIR=%%~fI"
  
 set "PYTHON_EXE=%PROJECT_DIR%\venv\Scripts\python.exe"
-set "MAIN_PY=%PROJECT_DIR%\Cardinal_Inv_Upload.py"
+set "MAIN_PY=%PROJECT_DIR%\Cardinal_ETL_Sequence.py"
 set "CONFIG_YAML=%PROJECT_DIR%\config.yaml"
  
 if not exist "%PROJECT_DIR%\logs" mkdir "%PROJECT_DIR%\logs"
@@ -19,7 +19,7 @@ if not exist "%PYTHON_EXE%" (
 )
  
 if not exist "%MAIN_PY%" (
-    echo [%date% %time%] ERROR: Cardinal_Inv_Upload.py missing >> "%LOGFILE%"
+    echo [%date% %time%] ERROR: Cardinal_ETL_Sequence.py missing >> "%LOGFILE%"
     set "PY_EXIT=1"
     goto :Finish
 )

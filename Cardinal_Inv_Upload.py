@@ -49,6 +49,7 @@ logger.addHandler(console_handler)
 # CONFIGURATION  (values loaded from .env)
 # ============================================================================
 BASE_DIR       = _CFG['paths']['base_dir']
+ARCHIVE_DIR    = _CFG['paths']['archive_dir']
 DB_SERVER      = _CFG['database']['server']
 DB_NAME        = _CFG['database']['name']
 NET_USE_SERVER = _CFG['paths']['net_use_server']
@@ -110,32 +111,27 @@ EXPECTED_COLUMNS = _CFG['expected_columns']
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
-def find_invoice_file(base_dir):
-    """Find invoice file matching today's date."""
-    today = datetime.now().strftime('%Y-%m-%d')
-    pattern = _CFG['file_patterns']['invoice_glob'].format(date=today)
+def get_invoice_search_pattern():
+    """Build the invoice filename pattern for inbound invoice files."""
+    return _CFG['file_patterns']['invoice_glob'].format(date="*")
+
+def find_invoice_files(base_dir):
+    """Find invoice files sorted oldest modified time first."""
+    pattern = get_invoice_search_pattern()
     files = glob(os.path.join(base_dir, pattern))
     if files:
-        return os.path.basename(files[0])
-    raise FileNotFoundError(f"No invoice file found for {today}")
+        return sorted(files, key=os.path.getmtime)
+    raise FileNotFoundError(f"No invoice file found matching {pattern!r} in {base_dir}")
 
 def get_file_path(base_dir, file_name):
     """Get the full file path."""
     return os.path.join(base_dir, file_name)
 
-def extract_create_date(file_path):
-    """Extract creation date from file and format as YYYYMMDD."""
-    modified_time = os.path.getmtime(file_path)
-    return datetime.fromtimestamp(modified_time).strftime('%Y%m%d')
+def move_processed_file_to_archive(file_path):
+    """Move a successfully processed source file to the configured archive folder."""
+    os.makedirs(ARCHIVE_DIR, exist_ok=True)
 
-def archive_and_rename_file(file_path, create_date_str):
-    """Move file to Daily Archive subdirectory with date in filename."""
-    base_dir = os.path.dirname(file_path)
-    archived_dir = os.path.join(base_dir, _CFG['file_patterns']['archive_subdir'])
-    os.makedirs(archived_dir, exist_ok=True)
-
-    new_filename = _CFG['file_patterns']['archive_filename'].format(date=create_date_str)
-    new_file_path = os.path.join(archived_dir, new_filename)
+    new_file_path = os.path.join(ARCHIVE_DIR, os.path.basename(file_path))
     
     os.replace(file_path, new_file_path)
     logger.info(f"         File archived to: {new_file_path}")
@@ -347,6 +343,7 @@ def run_etl():
     rows_processed = 0
     source_file_path = None
     cnxn = None
+    write_final_health_status = True
 
     logger.info("\u2554" + "\u2550" * 64 + "\u2557")
     logger.info("\u2551  Cardinal Invoice Detail Upload Process                        \u2551")
@@ -354,6 +351,7 @@ def run_etl():
     logger.info(f"Staging Table: {STAGING_TABLE}")
     logger.info(f"Final Table:   {FINAL_TABLE}")
     logger.info(f"Source Dir:    {BASE_DIR}")
+    logger.info(f"Archive Dir:   {ARCHIVE_DIR}")
     logger.info(f"Timestamp:     {run_start.strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info(f"Auth User:     {SERVICE_USER}")
     logger.info("")
@@ -370,32 +368,13 @@ def run_etl():
 
         # ── Step 1: File Discovery ────────────────────────────────────────
         logger.info("--- File Discovery ---")
-        file_name = find_invoice_file(BASE_DIR)
-        file_path = get_file_path(BASE_DIR, file_name)
-        source_file_path = file_path
-        file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
-        logger.info(f"[STEP 1] Source file identified: {file_name}")
-        logger.info(f"         Full path:  {file_path}")
-        logger.info(f"         File size:  {file_size_mb:.2f} MB")
+        source_file_path = os.path.join(BASE_DIR, get_invoice_search_pattern())
+        invoice_files = find_invoice_files(BASE_DIR)
+        logger.info(f"[STEP 1] Invoice files identified: {len(invoice_files)}")
 
-        # ── Step 2: Archive File ──────────────────────────────────────────
-        logger.info("[STEP 2] Archiving file...")
-        create_date_str = extract_create_date(file_path)
-        archived_file_path = archive_and_rename_file(file_path, create_date_str)
-
-        # ── Step 3: Load & Prepare Data ──────────────────────────────────
-        step3_start = datetime.now()
-        logger.info("[STEP 3] Reading Excel file...")
-        df = load_and_prepare_data(archived_file_path)
-        rows_processed = len(df)
-        step3_elapsed = (datetime.now() - step3_start).total_seconds()
-        logger.info(f"         Rows read from Excel:   {len(df):,}")
-        logger.info(f"         Columns:                {df.shape[1]}")
-        logger.info(f"         Unique days:            {sorted(df['Billing Date'].unique())}")
-        logger.info(f"         Read time:              {step3_elapsed:.1f}s")
-
-        # ── Step 4: Database Connection ───────────────────────────────────
-        logger.info("[STEP 4] Database connection: {}.{}".format(DB_SERVER, DB_NAME))
+        # ── Step 2: Load & Prepare Data ──────────────────────────────────
+        # ── Step 3: Database Connection ───────────────────────────────────
+        logger.info("[STEP 2] Database connection: {}.{}".format(DB_SERVER, DB_NAME))
         cnxn = get_db_connection()
         cursor = cnxn.cursor()
         cursor.execute("SELECT DB_NAME(), SUSER_SNAME()")
@@ -404,32 +383,100 @@ def run_etl():
         logger.info(f"         Connected to:  {db_name}")
         logger.info(f"         SQL login:     {login_name}")
 
-        # ── Step 5: Load to Staging ───────────────────────────────────────
-        step5_start = datetime.now()
-        logger.info("[STEP 5] Loading to staging table...")
-        insert_to_staging_table(df, cnxn)
-        step5_elapsed = (datetime.now() - step5_start).total_seconds()
-        logger.info(f"         Staging load time: {step5_elapsed:.1f}s")
+        # ── Step 4: Load to Staging ───────────────────────────────────────
+        log_file_path = str(Path(log_file).relative_to(Path(__file__).parent))
+        write_final_health_status = False
 
-        # ── Step 6: Insert to Final Table ─────────────────────────────────
-        step6_start = datetime.now()
-        logger.info("[STEP 6] Inserting transformed data into final table...")
-        rows_inserted = insert_to_final_table(cnxn)
-        step6_elapsed = (datetime.now() - step6_start).total_seconds()
-        logger.info(f"         Insert time: {step6_elapsed:.1f}s")
+        # ── Step 5: Insert to Final Table ─────────────────────────────────
+        for file_index, file_path in enumerate(invoice_files, start=1):
+            file_run_start = datetime.now()
+            file_task_status = 'FAILED'
+            file_error_msg = None
+            file_rows_inserted = 0
+            file_rows_processed = 0
+            source_file_path = file_path
+            file_name = os.path.basename(file_path)
 
+            try:
+                file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
+                logger.info("")
+                logger.info(f"[FILE {file_index}/{len(invoice_files)}] Source file: {file_name}")
+                logger.info(f"         Full path:  {file_path}")
+                logger.info(f"         File size:  {file_size_mb:.2f} MB")
+
+                step3_start = datetime.now()
+                logger.info("[STEP 3] Reading Excel file...")
+                df = load_and_prepare_data(file_path)
+                file_rows_processed = len(df)
+                step3_elapsed = (datetime.now() - step3_start).total_seconds()
+                logger.info(f"         Rows read from Excel:   {len(df):,}")
+                logger.info(f"         Columns:                {df.shape[1]}")
+                logger.info(f"         Unique days:            {sorted(df['Billing Date'].unique())}")
+                logger.info(f"         Read time:              {step3_elapsed:.1f}s")
+
+                step5_start = datetime.now()
+                logger.info("[STEP 4] Loading to staging table...")
+                insert_to_staging_table(df, cnxn)
+                step5_elapsed = (datetime.now() - step5_start).total_seconds()
+                logger.info(f"         Staging load time: {step5_elapsed:.1f}s")
+
+                step6_start = datetime.now()
+                logger.info("[STEP 5] Inserting transformed data into final table...")
+                file_rows_inserted = insert_to_final_table(cnxn)
+                step6_elapsed = (datetime.now() - step6_start).total_seconds()
+                logger.info(f"         Insert time: {step6_elapsed:.1f}s")
+
+                logger.info("[STEP 6] Archiving processed file...")
+                archived_file_path = move_processed_file_to_archive(file_path)
+
+                file_task_status = 'SUCCESS'
+                rows_processed += file_rows_processed
+                rows_inserted += file_rows_inserted
+
+                insert_health_status(
+                    cnxn,
+                    source_file_path=source_file_path,
+                    run_time=file_run_start,
+                    task_status=file_task_status,
+                    row_count=file_rows_inserted,
+                    log_file_path=log_file_path,
+                    error_msg=file_error_msg,
+                )
+
+                logger.info(f"         File complete: {file_name}")
+                logger.info(f"         Archived File: {archived_file_path}")
+
+            except Exception as file_err:
+                file_error_msg = str(file_err)
+                logger.error(f"Error processing file {file_name}: {file_error_msg}")
+                try:
+                    insert_health_status(
+                        cnxn,
+                        source_file_path=source_file_path,
+                        run_time=file_run_start,
+                        task_status=file_task_status,
+                        row_count=file_rows_inserted,
+                        log_file_path=log_file_path,
+                        error_msg=file_error_msg,
+                    )
+                except Exception as health_err:
+                    logger.warning(f"         Could not write file health status: {health_err}")
+                raise
+
+        # ── Step 6: Archive Processed File ────────────────────────────────
         task_status = 'SUCCESS'
 
         # ── Step 7: Summary ───────────────────────────────────────────────
         total_elapsed = (datetime.now() - run_start).total_seconds()
-        throughput = len(df) / total_elapsed if total_elapsed > 0 else 0
+        throughput = rows_processed / total_elapsed if total_elapsed > 0 else 0
         logger.info("")
         logger.info("╔" + "═" * 64 + "╗")
         logger.info("║  Process Completed Successfully!                               ║")
         logger.info("╚" + "═" * 64 + "╝")
         logger.info("")
         logger.info("=" * 47)
-        logger.info(f"  Total Rows Processed: {len(df):,}")
+        logger.info(f"  Files Processed:      {len(invoice_files):,}")
+        logger.info(f"  Total Rows Processed: {rows_processed:,}")
         logger.info(f"  Rows Inserted:        {rows_inserted:,}")
         logger.info(f"  Staging Table:        {STAGING_TABLE}")
         logger.info(f"  Final Table:          {FINAL_TABLE}")
@@ -453,17 +500,20 @@ def run_etl():
         # Store log path relative to script folder (portable across machines)
         log_file_path = str(Path(log_file).relative_to(Path(__file__).parent))
         try:
-            if cnxn is None:
-                cnxn = get_db_connection()
-            insert_health_status(
-                cnxn,
-                source_file_path=source_file_path,
-                run_time=run_start,
-                task_status=task_status,
-                row_count=rows_inserted,
-                log_file_path=log_file_path,
-                error_msg=error_msg,
-            )
+            if write_final_health_status:
+                if cnxn is None:
+                    cnxn = get_db_connection()
+                insert_health_status(
+                    cnxn,
+                    source_file_path=source_file_path,
+                    run_time=run_start,
+                    task_status=task_status,
+                    row_count=rows_inserted,
+                    log_file_path=log_file_path,
+                    error_msg=error_msg,
+                )
+            else:
+                logger.info("         Per-file health status already recorded.")
         except Exception as health_err:
             logger.warning(f"         Could not write health status: {health_err}")
         finally:
