@@ -23,6 +23,7 @@ with open(CONFIG_PATH, "r", encoding="utf-8") as f:
 
 sftp_config = config["sftp"]
 paths_config = config["paths"]
+file_patterns_config = config["file_patterns"]
 sequence_config = config.get("sequence", {})
 
 SFTP_HOST = sftp_config["host"]
@@ -30,9 +31,15 @@ SFTP_PORT = sftp_config["port"]
 SFTP_USERNAME = sftp_config["username"]
 SFTP_PASSWORD = sftp_config["password"]
 REMOTE_SOURCE_FOLDER = sftp_config["remote_source_folder"]
-LOCAL_DESTINATION_FOLDER = sftp_config["local_destination_folder"]
+LOCAL_DESTINATION_FOLDER = paths_config["base_dir"]
 ARCHIVE_FOLDER = paths_config["archive_dir"]
 FILE_PATTERN = sftp_config.get("file_pattern", "*")
+INVOICE_PATTERN = file_patterns_config["invoice_glob"].format(date="*")
+ARCHIVE_SUBDIR = file_patterns_config.get("archive_subdir", "Daily Archive")
+ARCHIVE_FILENAME = file_patterns_config.get(
+    "archive_filename",
+    "Montefiore_Purchase Invoice Detail Report_Daily_{date}.xlsx",
+)
 WINDOW_END_HOUR = int(sequence_config.get("window_end_hour", 11))
 
 SERVICE_USER = os.environ.get("SERVICE_USER", r"DM_MONTYNT\svc_procure_data")
@@ -97,10 +104,28 @@ def get_matching_remote_files(sftp, window_start, window_end):
     return sorted(matching_files, key=lambda attr: attr.st_mtime or 0)
 
 
-def local_or_archive_exists(file_name):
+def get_daily_archive_path(file_name, remote_attr):
+    if not fnmatch.fnmatch(file_name, INVOICE_PATTERN):
+        return None
+
+    if remote_attr.st_mtime is None:
+        return None
+
+    archive_date = datetime.fromtimestamp(remote_attr.st_mtime).strftime("%Y%m%d")
+    archive_name = ARCHIVE_FILENAME.format(date=archive_date)
+    return os.path.join(ARCHIVE_FOLDER, ARCHIVE_SUBDIR, archive_name)
+
+
+def local_or_archive_exists(file_name, remote_attr):
     local_path = os.path.join(LOCAL_DESTINATION_FOLDER, file_name)
     archive_path = os.path.join(ARCHIVE_FOLDER, file_name)
-    return os.path.exists(local_path) or os.path.exists(archive_path)
+    daily_archive_path = get_daily_archive_path(file_name, remote_attr)
+
+    return (
+        os.path.exists(local_path)
+        or os.path.exists(archive_path)
+        or (daily_archive_path is not None and os.path.exists(daily_archive_path))
+    )
 
 
 def preserve_download_timestamp(sftp, remote_path, local_path, remote_attr):
@@ -148,7 +173,7 @@ def download_sftp_files(window_start=None, window_end=None):
         for remote_attr in matching_files:
             file_name = remote_attr.filename
 
-            if local_or_archive_exists(file_name):
+            if local_or_archive_exists(file_name, remote_attr):
                 log(f"Skipping already downloaded/archived file: {file_name}")
                 continue
 

@@ -127,11 +127,19 @@ def get_file_path(base_dir, file_name):
     """Get the full file path."""
     return os.path.join(base_dir, file_name)
 
-def move_processed_file_to_archive(file_path):
-    """Move a successfully processed source file to the configured archive folder."""
-    os.makedirs(ARCHIVE_DIR, exist_ok=True)
+def get_archive_date(file_path):
+    """Return the source file modified date as YYYYMMDD for archive naming."""
+    modified_time = os.path.getmtime(file_path)
+    return datetime.fromtimestamp(modified_time).strftime('%Y%m%d')
 
-    new_file_path = os.path.join(ARCHIVE_DIR, os.path.basename(file_path))
+def move_processed_file_to_archive(file_path):
+    """Move a successfully processed source file to the Daily Archive folder."""
+    archive_dir = os.path.join(ARCHIVE_DIR, _CFG['file_patterns']['archive_subdir'])
+    os.makedirs(archive_dir, exist_ok=True)
+
+    archive_date = get_archive_date(file_path)
+    new_filename = _CFG['file_patterns']['archive_filename'].format(date=archive_date)
+    new_file_path = os.path.join(archive_dir, new_filename)
     
     os.replace(file_path, new_file_path)
     logger.info(f"         File archived to: {new_file_path}")
