@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-PRIME_Connection.py
--------------------
+test_prime_connection.py
+------------------------
 PRIME database connection test without built-in impersonation.
 To be used with run_with_impersonation.py wrapper.
 
 Usage:
-    python run_with_impersonation.py PRIME_Connection.py
+    python run_with_impersonation.py tests/test_prime_connection.py
 """
 
 import pyodbc
@@ -15,8 +15,9 @@ import warnings
 from pathlib import Path
 import yaml
 
-# Load config
-config_path = Path(__file__).parent / 'config.yaml'
+# Load config from the project root.
+ROOT_DIR = Path(__file__).resolve().parents[1]
+config_path = ROOT_DIR / 'config.yaml'
 with open(config_path, 'r', encoding='utf-8') as f:
     config = yaml.safe_load(f)
 

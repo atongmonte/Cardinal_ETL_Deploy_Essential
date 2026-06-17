@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Test_NetworkDrive.py
---------------------
+test_network_drive.py
+---------------------
 Network drive test without built-in impersonation.
 To be used with run_with_impersonation.py wrapper.
 
 Usage:
-    python run_with_impersonation.py Test_NetworkDrive.py
+    python run_with_impersonation.py tests/test_network_drive.py
 """
 
 import os
@@ -18,8 +18,9 @@ from pathlib import Path
 import pandas as pd
 import yaml
 
-# Load config
-config_path = Path(__file__).parent / 'config.yaml'
+# Load config from the project root.
+ROOT_DIR = Path(__file__).resolve().parents[1]
+config_path = ROOT_DIR / 'config.yaml'
 with open(config_path, 'r', encoding='utf-8') as f:
     config = yaml.safe_load(f)
 
@@ -60,7 +61,7 @@ def main():
     print('  Network Drive Connection Test')
     print(sep)
     from dotenv import load_dotenv
-    load_dotenv()
+    load_dotenv(ROOT_DIR / '.env')
     service_user = os.environ.get('SERVICE_USER', f'{os.environ.get("USERDOMAIN","?")}\\{os.environ.get("USERNAME","?")}')
     print(f'  Host        : montefiore.org')
     print(f'  Target dir  : {UNC_DIR}')

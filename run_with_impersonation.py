@@ -20,8 +20,8 @@ thread impersonation token, meaning network calls would not use the service
 account credentials.
 
 Example:
-    python run_with_impersonation.py PRIME_Connection.py
-    python run_with_impersonation.py Test_NetworkDrive.py
+    python run_with_impersonation.py tests/test_prime_connection.py
+    python run_with_impersonation.py tests/test_network_drive.py
     python run_with_impersonation.py Cardinal_Inv_Upload.py
 """
 
@@ -41,6 +41,10 @@ def main():
         for py_file in script_dir.glob("*.py"):
             if py_file.name not in ['run_with_impersonation.py', 'windows_impersonation.py']:
                 print(f"  {py_file.name}", file=sys.stderr)
+        tests_dir = script_dir / "tests"
+        if tests_dir.exists():
+            for py_file in tests_dir.glob("test_*.py"):
+                print(f"  tests/{py_file.name}", file=sys.stderr)
         sys.exit(1)
     
     # Load environment variables

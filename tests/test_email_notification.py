@@ -2,26 +2,31 @@
 """
 test_email_notification.py
 --------------------------
-Simplified email notification test without built-in impersonation.
+Email notification test without built-in impersonation.
 To be used with run_with_impersonation.py wrapper.
 
 Usage:
-    python run_with_impersonation.py test_email_notification.py
+    python run_with_impersonation.py tests/test_email_notification.py
 """
 
 import os
 import sys
 from pathlib import Path
+
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
 from dotenv import load_dotenv
 from msgraph_email import send_email
 import yaml
 
 def main():
     # Load environment
-    load_dotenv()
+    load_dotenv(ROOT_DIR / '.env')
     
     # Load config
-    config_path = Path(__file__).parent / 'config.yaml'
+    config_path = ROOT_DIR / 'config.yaml'
     with open(config_path, 'r', encoding='utf-8') as f:
         config = yaml.safe_load(f)
     
