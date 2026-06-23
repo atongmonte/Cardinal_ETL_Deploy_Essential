@@ -26,10 +26,10 @@ paths_config = config["paths"]
 file_patterns_config = config["file_patterns"]
 sequence_config = config.get("sequence", {})
 
-SFTP_HOST = sftp_config["host"]
-SFTP_PORT = sftp_config["port"]
-SFTP_USERNAME = sftp_config["username"]
-SFTP_PASSWORD = sftp_config["password"]
+SFTP_HOST = os.environ.get("SFTP_HOST", "")
+SFTP_PORT = int(os.environ.get("SFTP_PORT", "22"))
+SFTP_USERNAME = os.environ.get("SFTP_USERNAME", "")
+SFTP_PASSWORD = os.environ.get("SFTP_PASSWORD", "")
 REMOTE_SOURCE_FOLDER = sftp_config["remote_source_folder"]
 LOCAL_DESTINATION_FOLDER = paths_config["base_dir"]
 ARCHIVE_FOLDER = paths_config["archive_dir"]
@@ -140,6 +140,20 @@ def preserve_download_timestamp(sftp, remote_path, local_path, remote_attr):
 
 
 def download_sftp_files(window_start=None, window_end=None):
+    missing_sftp_values = [
+        name
+        for name, value in {
+            "SFTP_HOST": SFTP_HOST,
+            "SFTP_USERNAME": SFTP_USERNAME,
+            "SFTP_PASSWORD": SFTP_PASSWORD,
+        }.items()
+        if not value
+    ]
+    if missing_sftp_values:
+        raise EnvironmentError(
+            "Missing required .env values: " + ", ".join(missing_sftp_values)
+        )
+
     if window_start is None or window_end is None:
         default_start, default_end = get_default_window()
         window_start = window_start or default_start
